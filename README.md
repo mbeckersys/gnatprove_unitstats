@@ -88,16 +88,19 @@ The following is a list of all available columns. Only a subset is shown in the 
 General:
  * **unit**: name of the package. Generics are usually not shown (depends on GNATprove version), but included at the place of their instantiation
  * **ents**: number of entities in unit
+ 
 Related to properties (checks):
  * **success**: percentage of successfully proven properties in unit
  * **suppressed**: number of failed properties which were suppressed with `pragma Annotate`
  * **props**: number of properties in unit
  * **proven**: number of proven properties in unit
+ 
 Related to flow analysis:
  * **flows**: number of flows in unit
  * **flows_success**: percentage of successfully proven flows in unit
  * **flows_proven**: number of successfully proven flows in unit
  * **flows_suppressed**: number of flow warnings which were suppressed with `pragma Annotate`
+ 
 Related to coverage (how much of my code is in SPARK?):
  * **spec**: number of entities where spec is in SPARK for this unit
  * **body**: number of entities where body is in SPARK for this unit
