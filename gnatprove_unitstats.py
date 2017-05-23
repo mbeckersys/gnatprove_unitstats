@@ -5,8 +5,10 @@
 #
 # (C) 2017 TU Muenchen, RCS, Martin Becker <becker@rcs.ei.tum.de>
 
-import sys, getopt, os, inspect, time, math, re, datetime, numpy, glob, pprint
+from __future__ import print_function
+import sys, getopt, os, inspect, time, math, re, datetime, glob, pprint
 import json, operator, subprocess, copy
+
 
 # use this if you want to include modules from a subfolder
 cmd_subfolder = os.path.realpath(os.path.abspath(os.path.join(os.path.split(inspect.getfile( inspect.currentframe() ))[0],"pytexttable")))
@@ -17,14 +19,12 @@ import texttable
 #######################################
 #     GLOBAL CONSTANTS
 #######################################
-GNATINSPECT="gnatinspect"
 KNOWN_SORT_CRITERIA = ('alpha', 'coverage', 'success', 'props', 'ents', 'skip');
 
 #######################################
 #     GLOBAL VARIABLES
 #######################################
-# used to suppress output from subprocesses
-FNULL = open(os.devnull, 'w')
+
 
 #######################################
 #     FUNCTION DEFINITIONS
@@ -37,6 +37,7 @@ def file2unit(filename):
     unitname = os.path.splitext(filename)[0]
     unitname = unitname.replace("-",".")
     return unitname.lower()
+
 
 def get_json_data(folders):
     """
@@ -80,13 +81,13 @@ def get_json_data(folders):
     return d
 
 
-def add_unitentities(jsondata, prjfile, folders):
+def add_unitentities(jsondata, prjfile, folders, fh):
     """
     For all units in the project, get list of entities.
 
     We wanted to use gnatinspect, but it does not give us what we need. We would have to
     give all included project files to it, since flag --runtime does not work as intended.
-    Probably we should handover -Pp1.gpr,p2.gpr,... to this script, and then let 
+    Probably we should handover -Pp1.gpr,p2.gpr,... to this script, and then let
     gprbuild or someone figure out object dirs. Then we could use the gpr files here
 
     For now, we parse the ALI files, which are in our main project's object dir. Advantage
@@ -97,37 +98,10 @@ def add_unitentities(jsondata, prjfile, folders):
         """
         compile a list of entities in this unit
 
-        Not perfect, either. When a generic package is instantiated, then all functions which are not 
+        Not perfect, either. When a generic package is instantiated, then all functions which are not
         public are in the ALI file of the instantiating unit, but those with spec are not.
 
         """
-        # def get_gnatinspect_result(filename):
-        #     """
-        #     Query entities of single file. This only works when the project actually contains the file
-        #     without indirections.
-        #     """
-        #     global GNATINSPECT
-        #     cmd = GNATINSPECT + " -P" + prjfile + ' --command="entities ' + filename + '"'
-        #     print "cmd=" + cmd
-        #     success = True
-        #     try:
-        #         ret = subprocess.check_output(cmd, stdin=FNULL, stderr=FNULL, shell=True)
-        #     except subprocess.CalledProcessError as e:
-        #         ret = e.output
-        #         success = False
-            
-        #     print "success=" + str(success) + ", ret=" + str(ret)
-
-        #     # TODO: turn ret into a dict
-        #     d=ret
-        #     return d
-
-        # # first spec file
-        # ents_spec = get_gnatinspect_result(filebase + ".ads")
-        # print "ents in spec of " + unit["filebase"] + "=" + str(ents_spec)
-        
-        # # then body file
-        # ents_body = get_gnatinspect_result(filebase + ".adb")
 
         def parse_ali_file(filebase):
             """
@@ -137,7 +111,7 @@ def add_unitentities(jsondata, prjfile, folders):
                 """
                 verbose type from ALI symbol. See lib-xref.ads
                 Only handles those with would appear in *.spark files
-                
+
                 Bodies of functions will not appear in SPARK, only specs.
                 Task types will not appear in SPARK, only objects
                 packages will appear
@@ -168,7 +142,7 @@ def add_unitentities(jsondata, prjfile, folders):
                 elif t == 'x':
                     typ = "abstract procedure"
                 return typ
-            
+
             d=[]
             notfound = True
             files = [fld + os.sep + filebase + ".ali" for fld in folders]
@@ -177,7 +151,7 @@ def add_unitentities(jsondata, prjfile, folders):
             body = False
             for fi in files:
                 try:
-                    with open (fi) as f:                        
+                    with open (fi) as f:
                         for line in f:
                             match = re.search(r"^X \d+ ([^\s]+)\.(ads|adb)", line)
                             if match:
@@ -186,7 +160,7 @@ def add_unitentities(jsondata, prjfile, folders):
                                 spec = True if match.group(2) == "ads" else False
                                 body = True if match.group(2) == "adb" else False
                                 continue
-                            
+
                             if active:
                                 # line type col level entity
                                 if spec and not body:
@@ -207,14 +181,14 @@ def add_unitentities(jsondata, prjfile, folders):
                                         d.append({'name':ent_id, 'file':filename, 'line':ent_line, 'col':ent_col, 'type': ent_type, 'type_orig':match.group(2)})
 
                     notfound = False
-                    break                
+                    break
                 except:
                     pass
             if notfound:
-                print "WARNING: " + filebase + ".ali nowhere found"
+                print("WARNING: " + filebase + ".ali nowhere found", file=fh)
                 pass
             return d
-        
+
         # parse ALI file
         ents = parse_ali_file (filebase)
         return ents
@@ -226,7 +200,8 @@ def add_unitentities(jsondata, prjfile, folders):
     #exit(42)
     return json_with_ent
 
-def get_statistics(jsondata, sorting, exclude, include, details):
+
+def get_statistics(jsondata, sorting, exclude, include, details, fh):
     """
     Turn the JSON data into an abstract summary.
     """
@@ -251,7 +226,7 @@ def get_statistics(jsondata, sorting, exclude, include, details):
                 if is_spec: s = s + 1 # that is half-way covered
                 n_spark = n_spark + 1
         if not (n_spark <= n_ent):
-            print "WARNING: Total number of entities in ALI file (" + str(n_ent) + ") is less than number of entities found by GNATprove (" + str(n_spark) + "); please check: " + u
+            print("WARNING: Total number of entities in ALI file (" + str(n_ent) + ") is less than number of entities found by GNATprove (" + str(n_spark) + "); please check: " + u, file=fh)
             #pprint.pprint (uinfo)
             #exit(42)
             n_ent = n_spark
@@ -269,7 +244,7 @@ def get_statistics(jsondata, sorting, exclude, include, details):
         # skip: number of entities where SPARK is off
         # coverage: number of entities where body in in SPARK divided by number of entities
         # coverage_spec: number of entities where at least spec in in SPARK divided by number of entities
-        
+
         # GET SUCCESS of PROOF
         rule_stats={}
         p = 0
@@ -286,11 +261,11 @@ def get_statistics(jsondata, sorting, exclude, include, details):
                 if not rule in rule_stats:
                     rule_stats[rule]={"cnt": 0, "proven":0}
                 rule_stats[rule]["cnt"] += 1
-                rule_stats[rule]["proven"] += 1 if is_verified else 0            
+                rule_stats[rule]["proven"] += 1 if is_verified else 0
                 if details:
                     lid = { k:v for k,v in proof.iteritems() if k in ('file','line','col','rule','severity','how_proved','check_tree')}
                     abstract_units[u].setdefault("details_proofs",[]).append(lid)
-                
+
         abstract_units[u]["props"] = n
         abstract_units[u]["rules"] = rule_stats
         abstract_units[u]["proven"] = p
@@ -325,7 +300,7 @@ def get_statistics(jsondata, sorting, exclude, include, details):
         # carry over entities
         if details:
             abstract_units[u]["entities"] = uinfo["entities"]
-        
+
         # merge rules
         for r,s in rule_stats.iteritems():
             if not r in abstract_units[u]["rules"]:
@@ -337,29 +312,29 @@ def get_statistics(jsondata, sorting, exclude, include, details):
                         abstract_units[u]["rules"][k]=v
                     else:
                         abstract_units[u]["rules"][k]+=v
-                        
+
         ###########
         # SORTING
-        ###########        
+        ###########
         if "details_proofs" in abstract_units[u]:
             abstract_units[u]["details_proofs"].sort(key=operator.itemgetter('file','line','col','rule'))
         if "details_flows" in abstract_units[u]:
-            abstract_units[u]["details_flows"].sort(key=operator.itemgetter('file','line','col','rule'))            
+            abstract_units[u]["details_flows"].sort(key=operator.itemgetter('file','line','col','rule'))
 
 
     ################
     # FILTER UNITS
     ################
     if exclude and not include:
-		# filter away partial matches
+        # filter away partial matches
         tmp = abstract_units
         abstract_units = {u: uinfo for u,uinfo in tmp.iteritems() if not any(substring in u for substring in exclude) }
     elif include and not exclude:
-		# only keep perfect matches
-		tmp = abstract_units
-		abstract_units = {u: uinfo for u,uinfo in tmp.iteritems() if u in include }
+        # only keep perfect matches
+        tmp = abstract_units
+        abstract_units = {u: uinfo for u,uinfo in tmp.iteritems() if u in include }
 
-        
+
     ##########
     # TOTALS
     ##########
@@ -395,8 +370,8 @@ def get_statistics(jsondata, sorting, exclude, include, details):
                         total_rules[r][k]= v # copy
                     else:
                         total_rules[r][k]+=v
-    totals["rules"] = total_rules    
-    
+    totals["rules"] = total_rules
+
     #################
     #  SORT
     #################
@@ -413,7 +388,8 @@ def get_statistics(jsondata, sorting, exclude, include, details):
 
     return totals, sorted_abstract_units
 
-def print_table(units,filtercols):
+
+def print_table(units,filtercols,stream):
     """
     Makes a nice ascii table from the units dict, only using keys=filtercols
     """
@@ -440,23 +416,95 @@ def print_table(units,filtercols):
     tab.add_rows(data)
     tab.set_cols_width([maxlen] + [8]*num_datacols)
 
-    print tab.draw()
+    print(tab.draw(), file=stream)
+
 
 def print_usage():
-    print __file__ + " -P<gprfile>  [OPTION] (<gnatprove folder>)+"
-    print ''
-    print 'OPTIONS:'
-    print '   --sort=s[,s]*'
-    print '          sort statistics by criteria (s=' + ",".join(KNOWN_SORT_CRITERIA) + ')'
-    print '          e.g., "--sort=coverage,success" to sort by coverage, then by success'
-    print '   --table, -t'
-    print '          print as human-readable table instead of JSON/dict'
-    print '   --exclude=s[,s]*'
-    print '          exclude units which contain any of the given strings'
-    print '   --include=s[,s]*'
-    print '          only include units which match exactly any of given strings'    
-    print '   --details, -d'
-    print '          keep detailed proof/flow information for each unit'
+    print(__file__ + " -P<gprfile>  [OPTION] (<gnatprove folder>)+")
+    print('')
+    print('OPTIONS:')
+    print('   --sort=s[,s]*')
+    print('          sort statistics by criteria (s=' + ",".join(KNOWN_SORT_CRITERIA) + ')')
+    print('          e.g., "--sort=coverage,success" to sort by coverage, then by success')
+    print('   --table, -t')
+    print('          print as human-readable table instead of JSON/dict')
+    print('   --exclude=s[,s]*')
+    print('          exclude units which contain any of the given strings')
+    print('   --include=s[,s]*')
+    print('          only include units which match exactly any of given strings')
+    print('   --details, -d')
+    print('          keep detailed proof/flow information for each unit')
+
+
+def _open_outstream(fname):
+    fh = None
+    try:
+        if fname: fh = open(fname, 'w')
+    except:
+        pass
+    if fh is None: fh = sys.stdout
+    return fh
+
+
+def compute_unitstats (prjfile, gfolders, sorting=None, table=True, details=False, include=[], exclude=[], to_file=None, as_json=False):
+
+    # not required at the moment
+    # if not prjfile:
+    #     print "ERROR: project file must be specified with flag -P"
+    #     exit (1)
+
+    fh = _open_outstream(to_file)
+
+    # sanitize args
+    if include and exclude:
+        print ("WARNING: cannot include and exclude the same time. Using exclude.", file=fh)
+        include=[]
+    if sorting is None: 
+        print ("Using standard sorting.", file=fh)
+        sorting = KNOWN_SORT_CRITERIA
+    if as_json:
+        table=False
+        details=True
+
+
+    # output args
+    print ("sorting: " + ",".join(sorting), file=fh)
+    if exclude: print ("exclude: " + ",".join(exclude), file=fh)
+    if include: print ("include: " + ",".join(include), file=fh)
+
+    print ("Using folders: " + str(gfolders), file=fh)
+    jsondata = get_json_data (gfolders)
+    if not jsondata:
+        print ("no data")
+        return 1
+
+    jsondata = add_unitentities(jsondata, prjfile, gfolders, fh)
+    if not jsondata: return 1
+
+
+    totals,abstract_units = get_statistics (jsondata, sorting=sorting, exclude=exclude, include=include, details=details, fh=fh)
+    if not totals or not abstract_units: return 2
+    #print abstract_units # all correct
+
+
+    # print per unit
+    if table:
+        tablecols = ["unit","ents","success","coverage","coverage_spec","proven","props","flows","flows_success"]
+        print_table (abstract_units, tablecols, fh)
+    else:        
+        print (json.dumps(abstract_units), file=fh)
+
+    # print totals
+    print ("TOTALS:", file=fh)
+
+    if table:
+        pprint.pprint(totals, stream=fh)
+    else:
+        json.dump(totals, fh)
+
+    if fh and fh != sys.stdout: fh.close()
+    return 0
+
 
 def main(argv):
     gfolders = []
@@ -484,7 +532,7 @@ def main(argv):
 
         elif opt in ('-P', "--project"):
             prjfile=arg
-            
+
         elif opt in ('-s', "--sort"):
             cands = arg.split(",")
             for c in cands:
@@ -492,7 +540,7 @@ def main(argv):
                 if s in KNOWN_SORT_CRITERIA:
                     sorting.append(s)
                 else:
-                    print "Sort criteria '" + s + "' unknown"
+                    print("Sort criteria '" + s + "' unknown")
 
         elif opt in ('-e', "--exclude"):
             cands = arg.split(",")
@@ -512,50 +560,8 @@ def main(argv):
         elif opt in ('-d', '--details'):
             details = True
 
-    # not required at the moment
-    # if not prjfile:
-    #     print "ERROR: project file must be specified with flag -P"
-    #     exit (1)
-            
-	if include and exclude:
-		print "WARNING: cannot include and exclude the same time. Using exclude."
-		include=[]
-            
-    if not sorting:
-        sorting = KNOWN_SORT_CRITERIA
-    print "sorting: " + ",".join(sorting)
-    print "exclude: " + ",".join(exclude)
-    print "include: " + ",".join(include)
+    return compute_unitstats (prjfile=prjfile, gfolders=args, sorting=sorting, table=table, details=details, include=include, exclude=exclude)
 
-    gfolders = args
-
-    print "Using folders: " + str(gfolders)
-    jsondata = get_json_data (gfolders)    
-    if not jsondata: return 1
-
-    jsondata = add_unitentities(jsondata, prjfile, gfolders)
-    if not jsondata: return 1
-
-    
-    totals,abstract_units = get_statistics (jsondata, sorting=sorting, exclude=exclude, include=include, details=details)
-    if not totals or not abstract_units: return 2
-    #print abstract_units # all correct
-
-    # print per unit
-    if table:
-        tablecols = ["unit","ents","success","coverage","coverage_spec","proven","props","flows","flows_success"]
-        print_table (abstract_units, tablecols)        
-    else:
-        print json.dumps(abstract_units)
-
-    # print totals
-    print "TOTALS:"
-    if table:
-        pprint.pprint(totals)
-    else:
-        print json.dumps (totals)
-
-    return 0
 
 if __name__ == "__main__":
     main(sys.argv[1:])

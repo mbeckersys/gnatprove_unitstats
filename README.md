@@ -1,7 +1,9 @@
 # gnatprove_unitstats
-This Python script parses the JSON output from GNATprove runs, and computes statistics per unit/package, that can be presented either in a tabular view, or in machine-readable JSON format.
+This is a Python script that parses the JSON output from GNATprove runs, and computes statistics per unit/package, that can be presented either in a tabular view, or in machine-readable JSON format. It can also be called directly from GNAT Programming Studio by using the Plug-in that is included here.
 
 ## Usage
+
+### Standalone use of the script
 
 ```
 gnatprove_unitstats.py -t --sort=coverage,success,props --table $OBJ1
@@ -141,10 +143,15 @@ OPTIONS:
           keep detailed proof/flow information for each unit
 ```
 
-With flag `-d` the output contains much more informatin for each unit, including the types of check that failed:
-```
+With flag `-d` the output contains much more informatin for each unit, including the types of check that failed
 
-```
+### Use from GPS as Plug-In
+This is a work-in-progress.
+
+The SPARK Context menu contains two new entries: "Unit Statistics -> Text Report" and "Unit Statistics -> HTML Report".
+The text report is shown in the Messages window, whereas the HTML report is shown in a browser, with supplemantary
+plots. Note that the HTML report is only tested on Linux.
+
 
 ## Tweaking
 Columns in the table can be added/removed in main:
@@ -156,7 +163,15 @@ if table:
 Available columns as mentioned in section "Meaning of Columns".
 
 ## Installation
-Requires Python 2.7 and texttable (tested with 0.8.4, https://pypi.python.org/pypi?name=texttable&:action=display). Just execute the file explained in section "Usage".
+Requires Python 2.7 and texttable (tested with 0.8.4, https://pypi.python.org/pypi?name=texttable&:action=display). 
+The module "texttable" can be installed either system-wide, or simply put into a subfolder "pytexttable" next to this script. 
+
+If you want to call this script from GNAT Programming Studio, then the following steps are required:
+ 1. Copy (or symlink) both Python scripts into your GPS plug-ins folder (usually ~/.gps/plug-ins).
+ 2. The sources of "texttable" must be placed in ~/.gps/plug-ins/pytexttable, even if you have installed it
+    system-wide (because GPS uses its own Python)
+ 3. Start GPS, and enable the plug-in "Unitstats", and make sure "gnatprove_unitstats" is disabled.
+ 4. If you want graphical output (HTML report), then you have to install ipython and runipy.
 
 ## Known Problems
 Entity count might be imprecise (see warnings) because GNATprove finds more entities than given in the ALI files.
