@@ -7,7 +7,7 @@ This is a Python script that parses the JSON output from GNATprove runs, and com
 This is a work-in-progress.
 
 The SPARK Context menu contains two new entries: "Unit Statistics -> Text Report" and "Unit Statistics -> HTML Report".
-The text report is shown in the Messages window, whereas the HTML report is shown in a browser, with supplemantary
+The text report is shown in the Messages window, whereas the HTML report is shown in a browser, with supplementary
 plots. Note that the HTML report is only tested on Linux.
 
 The output is of "Text Report" is similar as described in the next section.
@@ -163,16 +163,16 @@ if table:
 Available columns as mentioned in section "Meaning of Columns".
 
 ## Installation
-Requires Python 2.7 and texttable (tested with 0.8.4, https://pypi.python.org/pypi?name=texttable&:action=display). 
+Requires Python 2.7+ and texttable (tested with 0.8.4, https://pypi.python.org/pypi?name=texttable&:action=display). 
 The module "texttable" can be installed either system-wide, or simply put into a subfolder "pytexttable" next to this script. 
 
 If you want to call this script from GNAT Programming Studio, then the following steps are required:
- 1. Copy (or symlink) both Python scripts into your GPS plug-ins folder (usually ~/.gps/plug-ins).
+ 1. Copy (or symlink) both Python scripts, as well as unitstats.ipynb into your GPS plug-ins folder (usually ~/.gps/plug-ins).
  2. The sources of "texttable" must be placed in ~/.gps/plug-ins/pytexttable, even if you have installed it
-    system-wide (because GPS uses its own Python)
+    system-wide (because GPS uses its own Python and won't find it)
  3. Start GPS, and enable the plug-in "Unitstats", and make sure "gnatprove_unitstats" is disabled.
- 4. If you want graphical output (HTML report), then you have to install ipython and runipy.
+ 4. If you want graphical output (HTML report), then you have to install ipython and runipy to generate reports.
 
 ## Known Problems
-Entity count might be imprecise (see warnings) because GNATprove finds more entities than given in the ALI files.
-The ALI files have to be considered to compute coverage, though.
+ * Entity count might be imprecise (see warnings) because GNATprove finds more entities than given in the ALI files. The ALI files have to be considered to compute coverage, though.
+ * GPS Plug-In: Project settings are not written back to gpr file, which results in settings being ignored (affects: sorting, include, exclude, template)
